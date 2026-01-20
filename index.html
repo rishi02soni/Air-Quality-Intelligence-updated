@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroSense AI | Universal Dashboard</title>
+    
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.6s ease-out forwards',
+                        'slide-up': 'slideUp 0.8s ease-out forwards',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'breathe': 'breathe 8s infinite ease-in-out',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' },
+                        },
+                        slideUp: {
+                            '0%': { opacity: '0', transform: 'translateY(20px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        breathe: {
+                            '0%, 100%': { transform: 'scale(1)', opacity: '0.8' },
+                            '50%': { transform: 'scale(1.5)', opacity: '0.4' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+  
+    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+    <script src="https://unpkg.com/recharts@2.10.3/umd/Recharts.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            overflow-x: hidden;
+        }
+        
+       
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+        }
+
+       
+        .dark .glass-panel {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .dark .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            color: #e2e8f0;
+        }
+        
+        .glass-card:hover {
+            transform: translateY(-2px);
+        }
+
+      
+        .bg-blob {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1;
+            background: radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 25%),
+                        radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.08) 0%, transparent 25%);
+        }
+        .dark .bg-blob {
+            background: radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.15) 0%, transparent 25%),
+                        radial-gradient(circle at 85% 30%, rgba(16, 185, 129, 0.15) 0%, transparent 25%);
+            background-color: #0f172a;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip: RechartsTooltip, ResponsiveContainer, AreaChart, Area, ReferenceLine } = Recharts;
+
+      
+        const IconBase = ({ children, className = "w-6 h-6", ...props }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>{children}</svg>
+        );
+        const Wind = (props) => <IconBase {...props}><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></IconBase>;
+        const Activity = (props) => <IconBase {...props}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></IconBase>;
+        const MapPin = (props) => <IconBase {...props}><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></IconBase>;
+        const AlertTriangle = (props) => <IconBase {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></IconBase>;
+        const CheckCircle = (props) => <IconBase {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></IconBase>;
+        const TrendingUp = (props) => <IconBase {...props}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></IconBase>;
+        const Search = (props) => <IconBase {...props}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></IconBase>;
+        const Droplets = (props) => <IconBase {...props}><path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"/><path d="M12.56 6.6A10.97 10.97 0 0 0 14 3.02c.5 2.5 2 4.9 4 6.5s3 3.5 3 5.5a6.98 6.98 0 0 1-11.91 4.97"/></IconBase>;
+        const ArrowRight = (props) => <IconBase {...props}><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></IconBase>;
+        const RefreshCw = (props) => <IconBase {...props}><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></IconBase>;
+        const Sun = (props) => <IconBase {...props}><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41-1.41"/><path d="m19.07 4.93-1.41 1.41"/></IconBase>;
+        const Moon = (props) => <IconBase {...props}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></IconBase>;
+        const Cloud = (props) => <IconBase {...props}><path d="M17.5 19c0-1.7-1.3-3-3-3h-1.1c-.1-3-2.4-5.4-5.4-5.4v0c-3 0-5.5 2.5-5.5 5.5 0 2.8 2.2 5 5 5h10"/></IconBase>;
+        const CloudRain = (props) => <IconBase {...props}><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M16 14v6"/><path d="M8 14v6"/><path d="M12 16v6"/></IconBase>;
+        const CloudSnow = (props) => <IconBase {...props}><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M8 15h.01"/><path d="M8 19h.01"/><path d="M12 17h.01"/><path d="M12 21h.01"/><path d="M16 15h.01"/><path d="M16 19h.01"/></IconBase>;
+        const Clock = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></IconBase>;
+        const Leaf = (props) => <IconBase {...props}><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></IconBase>;
+        const Utensils = (props) => <IconBase {...props}><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></IconBase>;
+        const ThumbsUp = (props) => <IconBase {...props}><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/></IconBase>;
+        const XCircle = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></IconBase>;
+        const Smile = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/></IconBase>;
+        const LocateFixed = (props) => <IconBase {...props}><line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><circle cx="12" cy="12" r="7"/></IconBase>;
+        const Globe = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></IconBase>;
+
+      
+        const translations = {
+            en: {
+                appTitle: "AeroSense",
+                subtitle: "AI ANALYTICS",
+                heroTitle: "Air Quality",
+                heroHighlight: "Intelligence",
+                heroDesc: "Real-time atmospheric data & wellness recommendations for",
+                searchPlaceholder: "Search any city...",
+                locateMe: "Locate Me",
+                liveIndex: "Live Index",
+                trendAnalysis: "Trend Analysis",
+                history: "Historical",
+                prediction: "AI Predicted",
+                healthIntel: "Health Intelligence",
+                pollutants: "Pollutant Concentration",
+                conditions: "Conditions",
+                humidity: "Humidity",
+                forecast: "AI Forecast",
+                wind: "Wind",
+                whatToDo: "What to Do",
+                avoid: "Avoid",
+                safe: "Safe Conditions",
+                action: "Action Required",
+                yoga: "Yoga",
+                diet: "Diet",
+                breathing: "Breathing Guide",
+                inhale: "Inhale",
+                exhale: "Exhale",
+                betterThanYest: "Better than yesterday",
+                worseThanYest: "Worse than yesterday"
+            },
+            es: {
+                appTitle: "AeroSense",
+                subtitle: "ANALÍTICA IA",
+                heroTitle: "Calidad del Aire",
+                heroHighlight: "Inteligencia",
+                heroDesc: "Datos atmosféricos en tiempo real y recomendaciones para",
+                searchPlaceholder: "Buscar ciudad...",
+                locateMe: "Ubicarme",
+                liveIndex: "Índice en Vivo",
+                trendAnalysis: "Análisis de Tendencias",
+                history: "Histórico",
+                prediction: "Predicción IA",
+                healthIntel: "Inteligencia de Salud",
+                pollutants: "Concentración de Contaminantes",
+                conditions: "Condiciones",
+                humidity: "Humedad",
+                forecast: "Pronóstico IA",
+                wind: "Viento",
+                whatToDo: "Qué hacer",
+                avoid: "Evitar",
+                safe: "Condiciones Seguras",
+                action: "Acción Requerida",
+                yoga: "Yoga",
+                diet: "Dieta",
+                breathing: "Guía de Respiración",
+                inhale: "Inhala",
+                exhale: "Exhala",
+                betterThanYest: "Mejor que ayer",
+                worseThanYest: "Peor que ayer"
+            },
+            hi: {
+                appTitle: "एयरोसेंस",
+                subtitle: "AI एनालिटिक्स",
+                heroTitle: "वायु गुणवत्ता",
+                heroHighlight: "इंटेलिजेंस",
+                heroDesc: "आपके शहर के लिए रीयल-टाइम डेटा और स्वास्थ्य सुझाव",
+                searchPlaceholder: "शहर खोजें...",
+                locateMe: "मेरा स्थान",
+                liveIndex: "लाइव इंडेक्स",
+                trendAnalysis: "रुझान विश्लेषण",
+                history: "इतिहास",
+                prediction: "AI भविष्यवाणी",
+                healthIntel: "स्वास्थ्य गाइड",
+                pollutants: "प्रदूषक एकाग्रता",
+                conditions: "मौसम",
+                humidity: "नमी",
+                forecast: "पूर्वानुमान",
+                wind: "हवा",
+                whatToDo: "क्या करें",
+                avoid: "बचें",
+                safe: "सुरक्षित",
+                action: "सावधानी जरूरी",
+                yoga: "योग",
+                diet: "आहार",
+                breathing: "सांस व्यायाम",
+                inhale: "सांस लें",
+                exhale: "सांस छोड़ें",
+                betterThanYest: "कल से बेहतर",
+                worseThanYest: "कल से खराब"
+            },
+            fr: {
+                appTitle: "AeroSense",
+                subtitle: "ANALYSE IA",
+                heroTitle: "Qualité de l'Air",
+                heroHighlight: "Intelligence",
+                heroDesc: "Données atmosphériques en temps réel et conseils pour",
+                searchPlaceholder: "Chercher une ville...",
+                locateMe: "Me Localiser",
+                liveIndex: "Indice en Direct",
+                trendAnalysis: "Analyse des Tendances",
+                history: "Historique",
+                prediction: "Prédiction IA",
+                healthIntel: "Intelligence Santé",
+                pollutants: "Concentration de Polluants",
+                conditions: "Conditions",
+                humidity: "Humidité",
+                forecast: "Prévisions IA",
+                wind: "Vent",
+                whatToDo: "À faire",
+                avoid: "À éviter",
+                safe: "Conditions Sûres",
+                action: "Action Requise",
+                yoga: "Yoga",
+                diet: "Régime",
+                breathing: "Guide Respiratoire",
+                inhale: "Inspirez",
+                exhale: "Expirez",
+                betterThanYest: "Mieux qu'hier",
+                worseThanYest: "Pire qu'hier"
+            }
+        };
+
+      
+        const trainAndPredict = (historyData) => {
+            const n = historyData.length;
+            if (n < 2) return { slope: 0, intercept: 0, prediction: historyData[0]?.aqi || 0 };
+            let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
+            historyData.forEach((point, index) => {
+                const x = index;
+                const y = point.aqi;
+                sumX += x;
+                sumY += y;
+                sumXY += x * y;
+                sumXX += x * x;
+            });
+            const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+            const intercept = (sumY - slope * sumX) / n;
+            const nextDayPrediction = slope * n + intercept;
+            return { slope, intercept, prediction: Math.max(10, Math.round(nextDayPrediction)) };
+        };
+
+        const fetchCityData = async (query, isLatLon = false) => {
+            try {
+                let lat, lon, name, country;
+
+                if (isLatLon) {
+                    lat = query.lat;
+                    lon = query.lon;
+                   
+                     const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${lat},${lon}&count=1&language=en&format=json`); 
+
+                   
+                     name = "Current Location";
+                     country = "";
+                } else {
+                    const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=en&format=json`);
+                    const geoData = await geoRes.json();
+                    if (!geoData.results || geoData.results.length === 0) throw new Error("City not found");
+                    lat = geoData.results[0].latitude;
+                    lon = geoData.results[0].longitude;
+                    name = geoData.results[0].name;
+                    country = geoData.results[0].country;
+                }
+
+                const [aqiRes, weatherRes] = await Promise.all([
+                    fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm10,pm2_5,ozone,nitrogen_dioxide&hourly=us_aqi&past_days=7&timezone=auto`),
+                    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code&timezone=auto`)
+                ]);
+
+                const aqiData = await aqiRes.json();
+                const weatherData = await weatherRes.json();
+
+             
+                const hourlyAqi = aqiData.hourly.us_aqi;
+                const hourlyTime = aqiData.hourly.time;
+                const dailyHistory = [];
+                const daysMap = new Map();
+                hourlyTime.forEach((t, i) => {
+                    const date = t.split('T')[0];
+                    if (!daysMap.has(date)) daysMap.set(date, []);
+                    if (hourlyAqi[i] !== null) daysMap.get(date).push(hourlyAqi[i]);
+                });
+                
+              
+                const dates = Array.from(daysMap.keys()).slice(-8, -1); 
+                dates.forEach(date => {
+                    const vals = daysMap.get(date);
+                    const avg = Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+                    const d = new Date(date);
+                    dailyHistory.push({
+                        day: d.toLocaleDateString('en-US', { weekday: 'short' }),
+                        fullDate: date,
+                        aqi: avg
+                    });
+                });
+
+                const mlResult = trainAndPredict(dailyHistory);
+                const currentAQI = aqiData.current.us_aqi;
+                const yesterdayAQI = dailyHistory[dailyHistory.length - 1]?.aqi || currentAQI;
+
+                return {
+                    city: name,
+                    country: country,
+                    current: {
+                        aqi: currentAQI,
+                        yesterdayAQI: yesterdayAQI,
+                        temp: Math.round(weatherData.current.temperature_2m),
+                        humidity: weatherData.current.relative_humidity_2m,
+                        wind: weatherData.current.wind_speed_10m,
+                        weatherCode: weatherData.current.weather_code,
+                        pollutants: {
+                            pm2_5: aqiData.current.pm2_5,
+                            pm10: aqiData.current.pm10,
+                            o3: aqiData.current.ozone,
+                            no2: aqiData.current.nitrogen_dioxide
+                        }
+                    },
+                    history: dailyHistory,
+                    prediction: {
+                        aqi: mlResult.prediction,
+                        trend: mlResult.prediction > currentAQI ? 'worsening' : 'improving'
+                    }
+                };
+            } catch (err) {
+                console.error(err);
+                throw err;
+            }
+        };
+
+       
+        const getAQIStatus = (aqi, lang) => {
+
+           
+            if (aqi <= 50) return { label: 'Good', color: 'text-emerald-500', bg: 'bg-emerald-50', gradient: 'from-emerald-500 to-teal-400', chart: '#10b981' };
+            if (aqi <= 100) return { label: 'Moderate', color: 'text-amber-500', bg: 'bg-amber-50', gradient: 'from-amber-400 to-orange-400', chart: '#f59e0b' };
+            if (aqi <= 150) return { label: 'Sensitive', color: 'text-orange-500', bg: 'bg-orange-50', gradient: 'from-orange-500 to-red-400', chart: '#f97316' };
+            if (aqi <= 200) return { label: 'Unhealthy', color: 'text-red-500', bg: 'bg-red-50', gradient: 'from-red-500 to-pink-500', chart: '#ef4444' };
+            if (aqi <= 300) return { label: 'Very Unhealthy', color: 'text-purple-600', bg: 'bg-purple-50', gradient: 'from-purple-600 to-indigo-600', chart: '#9333ea' };
+            return { label: 'Hazardous', color: 'text-rose-900', bg: 'bg-rose-50', gradient: 'from-rose-800 to-red-900', chart: '#881337' };
+        };
+
+        const getRecommendations = (aqi, lang) => {
+            
+            
+            const t = translations[lang];
+            
+            if (aqi <= 50) return {
+                yoga: { title: "Pranayama", desc: "Deep breathing outdoors." },
+                diet: { title: "Light & Fresh", desc: "Salads, fruits, water." },
+                dos: ["Ventilate home", "Outdoor cardio"],
+                donts: ["Idling engines"]
+            };
+            if (aqi <= 100) return {
+                yoga: { title: "Kapalbhati", desc: "Clearing breaths." },
+                diet: { title: "Antioxidants", desc: "Berries, green tea." },
+                dos: ["Moderate activity"],
+                donts: ["Burning trash"]
+            };
+            if (aqi <= 150) return {
+                yoga: { title: "Anulom Vilom", desc: "Balance energy." },
+                diet: { title: "Omega-3", desc: "Walnuts, flaxseeds." },
+                dos: ["Short walks"],
+                donts: ["Heavy exertion"]
+            };
+            return {
+                yoga: { title: "Meditation", desc: "Relaxation indoors." },
+                diet: { title: "Anti-inflammatory", desc: "Turmeric, ginger." },
+                dos: ["Wear mask", "Air purifier"],
+                donts: ["Outdoor run"]
+            };
+        };
+
+        const getWeatherIcon = (code, className) => {
+            if (code <= 1) return <Sun className={className} />;
+            if (code <= 3) return <Cloud className={className} />;
+            if (code <= 67) return <CloudRain className={className} />;
+            if (code <= 77) return <CloudSnow className={className} />;
+            return <Cloud className={className} />;
+        };
+
+        const getWeatherLabel = (code) => {
+            if (code <= 1) return "Clear";
+            if (code <= 3) return "Cloudy";
+            if (code <= 67) return "Rainy";
+            return "Overcast";
+        };
+
+      
+        const GlassCard = ({ children, className = "", delay = "0s" }) => (
+            <div className={`glass-card rounded-2xl p-6 ${className} animate-slide-up`} style={{ animationDelay: delay }}>{children}</div>
+        );
+
+        const StatBadge = ({ icon, label, value, subtext, colorClass, delay }) => (
+            <GlassCard delay={delay} className="flex items-center space-x-4 h-full relative overflow-hidden group">
+                 <div className={`absolute right-0 top-0 p-16 opacity-5 rounded-full ${colorClass.replace('text-', 'bg-')} -mr-8 -mt-8 transition-transform group-hover:scale-150 duration-700`}></div>
+                <div className={`p-3.5 rounded-xl ${colorClass.replace('text-', 'bg-')} bg-opacity-10 dark:bg-opacity-20 shadow-sm group-hover:scale-110 transition-transform duration-300`}>
+                    {icon}
+                </div>
+                <div>
+                    <p className="text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider">{label}</p>
+                    <h4 className="text-2xl font-bold text-slate-800 dark:text-white mt-0.5">{value}</h4>
+                    {subtext && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">{subtext}</p>}
+                </div>
+            </GlassCard>
+        );
+
+        const BreathingWidget = ({ lang }) => {
+            const [text, setText] = useState(translations[lang].inhale);
+            
+            useEffect(() => {
+                const interval = setInterval(() => {
+                    setText(prev => prev === translations[lang].inhale ? translations[lang].exhale : translations[lang].inhale);
+                }, 4000);
+                return () => clearInterval(interval);
+            }, [lang]);
+
+            return (
+                <div className="flex flex-col items-center justify-center p-4 bg-blue-50/50 dark:bg-slate-800/50 rounded-xl border border-blue-100 dark:border-slate-700">
+                    <h4 className="text-xs font-bold uppercase text-slate-500 mb-4 tracking-wider">{translations[lang].breathing}</h4>
+                    <div className="relative flex items-center justify-center w-24 h-24">
+                        <div className="absolute w-full h-full bg-blue-400/20 rounded-full animate-breathe"></div>
+                        <div className="absolute w-16 h-16 bg-blue-500/30 rounded-full animate-breathe" style={{animationDelay: '0.5s'}}></div>
+                        <span className="relative z-10 text-xs font-bold text-blue-800 dark:text-blue-300 transition-all duration-1000">
+                            {text}
+                        </span>
+                    </div>
+                </div>
+            );
+        };
+
+      
+        function App() {
+            const [cityInput, setCityInput] = useState('Bhilai');
+            const [loading, setLoading] = useState(false);
+            const [data, setData] = useState(null);
+            const [error, setError] = useState(null);
+            const [lang, setLang] = useState('en');
+            const [darkMode, setDarkMode] = useState(false);
+            const [time, setTime] = useState(new Date());
+
+          
+            const t = translations[lang];
+
+            const loadData = async (query, isLatLon = false) => {
+                setLoading(true); setError(null);
+                try {
+                    const result = await fetchCityData(query, isLatLon);
+                    setData(result);
+                } catch (err) {
+                    setError("Could not load data.");
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleLocateMe = () => {
+                if (navigator.geolocation) {
+                    setLoading(true);
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            loadData({ lat: position.coords.latitude, lon: position.coords.longitude }, true);
+                        },
+                        () => { setError("Location access denied."); setLoading(false); }
+                    );
+                } else {
+                    setError("Geolocation not supported.");
+                }
+            };
+
+            useEffect(() => {
+                loadData('Bhilai');
+                const timer = setInterval(() => setTime(new Date()), 1000);
+                return () => clearInterval(timer);
+            }, []);
+
+           
+            useEffect(() => {
+                if (darkMode) {
+                    document.documentElement.classList.add('dark');
+                    document.body.style.backgroundColor = '#0f172a';
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    document.body.style.backgroundColor = '#f8fafc';
+                }
+            }, [darkMode]);
+
+            const status = useMemo(() => data ? getAQIStatus(data.current.aqi, lang) : null, [data, lang]);
+            const recs = useMemo(() => data ? getRecommendations(data.current.aqi, lang) : null, [data, lang]);
+
+            const chartData = useMemo(() => {
+                if (!data) return [];
+                const plotData = data.history.map(d => ({ name: d.day, aqi: d.aqi }));
+                plotData.push({ name: 'Tmrw', aqi: data.prediction.aqi });
+                return plotData;
+            }, [data]);
+
+           
+            const comparisonText = useMemo(() => {
+                if (!data) return "";
+                const diff = data.current.aqi - data.current.yesterdayAQI;
+                if (diff < -5) return t.betterThanYest;
+                if (diff > 5) return t.worseThanYest;
+                return "Same as yesterday";
+            }, [data, lang]);
+
+            return (
+                <div className={`min-h-screen pb-12 relative text-slate-800 dark:text-slate-100 transition-colors duration-500`}>
+                    <div className="bg-blob"></div>
+
+                    {/* Navbar */}
+                    <nav className="glass-panel sticky top-0 z-50 border-b-0 border-b-slate-200/50 shadow-sm transition-colors duration-500">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex justify-between h-20 items-center">
+                                <div className="flex items-center space-x-3 cursor-pointer group">
+                                    <div className="bg-slate-900 dark:bg-white p-2.5 rounded-xl shadow-lg group-hover:rotate-12 transition-transform duration-300">
+                                        <Wind className="w-6 h-6 text-white dark:text-slate-900" />
+                                    </div>
+                                    <div>
+                                        <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 block leading-tight">
+                                            {t.appTitle}
+                                        </span>
+                                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 tracking-wider">{t.subtitle}</span>
+                                    </div>
+                                </div>
+                                
+                                <div className="flex items-center space-x-4 md:space-x-6">
+                                    {/* Language Selector */}
+                                    <div className="relative group">
+                                        <button className="flex items-center space-x-1 text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors">
+                                            <Globe className="w-4 h-4" />
+                                            <span className="uppercase">{lang}</span>
+                                        </button>
+                                        <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-100 dark:border-slate-700 hidden group-hover:block p-1">
+                                            {['en', 'es', 'hi', 'fr'].map(l => (
+                                                <button key={l} onClick={() => setLang(l)} className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 rounded-md uppercase font-medium">
+                                                    {l}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Theme Toggle */}
+                                    <button 
+                                        onClick={() => setDarkMode(!darkMode)}
+                                        className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-yellow-400 hover:scale-110 transition-transform"
+                                    >
+                                        {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                                    </button>
+
+                                    <div className="hidden md:flex items-center space-x-2 text-slate-500 dark:text-slate-400 bg-slate-100/50 dark:bg-slate-800/50 px-4 py-2 rounded-full border border-slate-200/50 dark:border-slate-700">
+                                        <Clock className="w-4 h-4" />
+                                        <span className="text-sm font-mono font-medium">{time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </nav>
+
+                    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+                        {/* Hero / Search */}
+                        <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-6 animate-fade-in">
+                            <div>
+                                <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 dark:text-white tracking-tight mb-2">
+                                    {t.heroTitle} <span className="text-blue-600 dark:text-blue-400">{t.heroHighlight}</span>
+                                </h1>
+                                <p className="text-lg text-slate-500 dark:text-slate-400 max-w-lg">
+                                    {t.heroDesc} {data ? data.city : '...'}.
+                                </p>
+                            </div>
+                            
+                            <div className="w-full md:w-auto flex flex-col md:flex-row gap-3">
+                                <form onSubmit={(e) => { e.preventDefault(); if(cityInput.trim()) loadData(cityInput); }} className="relative group flex-grow">
+                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                        <Search className="w-5 h-5 text-slate-400 group-hover:text-blue-500 transition-colors" />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={cityInput}
+                                        onChange={(e) => setCityInput(e.target.value)}
+                                        placeholder={t.searchPlaceholder}
+                                        className="block w-full md:w-80 pl-12 pr-12 py-4 bg-white dark:bg-slate-800 border-0 ring-1 ring-slate-200 dark:ring-slate-700 rounded-2xl shadow-lg shadow-slate-200/50 dark:shadow-none focus:ring-2 focus:ring-blue-500 outline-none transition-all font-medium text-slate-700 dark:text-white"
+                                    />
+                                    <button 
+                                        type="submit"
+                                        className="absolute right-3 top-3 p-1.5 bg-blue-600 rounded-xl text-white hover:bg-blue-700 transition-colors shadow-md shadow-blue-500/30"
+                                        disabled={loading}
+                                    >
+                                        {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                                    </button>
+                                </form>
+                                <button onClick={handleLocateMe} className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-lg ring-1 ring-slate-200 dark:ring-slate-700 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors" title={t.locateMe}>
+                                    <LocateFixed className="w-6 h-6" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {error && (
+                            <div className="mb-8 p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 rounded-xl flex items-center text-red-700 dark:text-red-400 animate-slide-up">
+                                <AlertTriangle className="w-5 h-5 mr-3" />
+                                {error}
+                            </div>
+                        )}
+
+                        {data && !loading && (
+                            <div className="space-y-8">
+                                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                                    
+                                    {/* Main AQI Card */}
+                                    <div className="md:col-span-5 lg:col-span-4 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+                                        <div className={`h-full rounded-3xl p-8 relative overflow-hidden shadow-2xl bg-gradient-to-br ${status.gradient} text-white flex flex-col justify-between group`}>
+                                            <div className="absolute top-0 right-0 p-32 bg-white opacity-10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-1000"></div>
+                                            
+                                            <div className="relative z-10">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <div className="flex items-center space-x-2 opacity-90 mb-1">
+                                                            <MapPin className="w-4 h-4" />
+                                                            <span className="font-bold tracking-wide text-sm uppercase">{data.city}, {data.country}</span>
+                                                        </div>
+                                                        <p className="text-xs font-medium opacity-75">{t.liveIndex}</p>
+                                                    </div>
+                                                    <div className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-lg text-xs font-bold border border-white/10 shadow-sm">
+                                                        US AQI
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="mt-8">
+                                                    <h2 className="text-7xl font-bold tracking-tighter">{data.current.aqi}</h2>
+                                                    <div className="flex flex-wrap gap-2 mt-2">
+                                                        <div className="inline-flex items-center bg-white/20 backdrop-blur-sm px-4 py-1.5 rounded-full border border-white/10">
+                                                            <div className="w-2 h-2 rounded-full bg-white mr-2 animate-pulse"></div>
+                                                            <span className="font-bold text-sm tracking-wide">{status.label}</span>
+                                                        </div>
+                                                        <div className="inline-flex items-center bg-black/20 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-medium">
+                                                            {comparisonText}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="relative z-10 mt-8 pt-6 border-t border-white/10 grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <p className="text-xs font-medium opacity-70 mb-1">PM 2.5</p>
+                                                    <p className="text-xl font-bold">{data.current.pollutants.pm2_5}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-medium opacity-70 mb-1">Ozone</p>
+                                                    <p className="text-xl font-bold">{data.current.pollutants.o3}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Secondary Stats */}
+                                    <div className="md:col-span-7 lg:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        <StatBadge delay="0.2s" icon={getWeatherIcon(data.current.weatherCode, "w-6 h-6 text-blue-600 dark:text-blue-400")} label={t.conditions} value={Math.round(data.current.temp) + "°C"} subtext={getWeatherLabel(data.current.weatherCode)} colorClass="text-blue-600" />
+                                        <StatBadge delay="0.3s" icon={<Droplets className="w-6 h-6 text-cyan-500" />} label={t.humidity} value={data.current.humidity + "%"} subtext={`${t.wind}: ${data.current.wind} km/h`} colorClass="text-cyan-500" />
+                                        <StatBadge delay="0.4s" icon={<TrendingUp className="w-6 h-6 text-indigo-500" />} label={t.forecast} value={data.prediction.aqi} subtext={`Trend: ${data.prediction.trend}`} colorClass="text-indigo-500" />
+                                        
+                                        {/* Chart Section */}
+                                        <div className="md:col-span-3 h-full">
+                                            <GlassCard className="h-full flex flex-col" delay="0.5s">
+                                                <div className="flex justify-between items-center mb-6">
+                                                    <div>
+                                                        <h3 className="text-lg font-bold text-slate-800 dark:text-white">{t.trendAnalysis}</h3>
+                                                        <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">Last 7 Days + AI Prediction</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex-grow min-h-[250px] w-full">
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                            <defs>
+                                                                <linearGradient id="colorAqi" x1="0" y1="0" x2="0" y2="1">
+                                                                    <stop offset="5%" stopColor={status.chart} stopOpacity={0.2}/>
+                                                                    <stop offset="95%" stopColor={status.chart} stopOpacity={0}/>
+                                                                </linearGradient>
+                                                            </defs>
+                                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? "#334155" : "#f1f5f9"} />
+                                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: darkMode ? '#94a3b8' : '#64748b', fontSize: 12}} dy={10} />
+                                                            <YAxis axisLine={false} tickLine={false} tick={{fill: darkMode ? '#94a3b8' : '#64748b', fontSize: 12}} />
+                                                            <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', backgroundColor: darkMode ? '#1e293b' : 'rgba(255,255,255,0.95)', color: darkMode ? '#fff' : '#000' }} />
+                                                            <Area type="monotone" dataKey="aqi" stroke={status.chart} strokeWidth={4} fillOpacity={1} fill="url(#colorAqi)" animationDuration={1500} />
+                                                        </AreaChart>
+                                                    </ResponsiveContainer>
+                                                </div>
+                                            </GlassCard>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Health Grid */}
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-slide-up" style={{ animationDelay: '0.6s' }}>
+                                    <GlassCard className={`border-l-4 ${data.current.aqi <= 50 ? 'border-l-emerald-500' : 'border-l-orange-500'}`}>
+                                        <div className="flex items-center justify-between mb-6">
+                                            <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center">
+                                                <Activity className="w-5 h-5 mr-2 text-slate-400" />
+                                                {t.healthIntel}
+                                            </h3>
+                                        </div>
+                                        
+                                        <div className="grid md:grid-cols-3 gap-4 mb-6">
+                                            <div className="p-4 rounded-xl border bg-white/50 dark:bg-slate-800/50 border-indigo-100 dark:border-slate-700">
+                                                <div className="p-2 rounded-lg bg-indigo-50 dark:bg-slate-700 text-indigo-600 w-fit mb-2"><Smile className="w-5 h-5" /></div>
+                                                <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">{t.yoga}</h4>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400">{recs.yoga.title}</p>
+                                            </div>
+                                            <div className="p-4 rounded-xl border bg-white/50 dark:bg-slate-800/50 border-emerald-100 dark:border-slate-700">
+                                                <div className="p-2 rounded-lg bg-emerald-50 dark:bg-slate-700 text-emerald-600 w-fit mb-2"><Utensils className="w-5 h-5" /></div>
+                                                <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200">{t.diet}</h4>
+                                                <p className="text-xs text-slate-500 dark:text-slate-400">{recs.diet.title}</p>
+                                            </div>
+                                            <BreathingWidget lang={lang} />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="bg-emerald-50/50 dark:bg-emerald-900/10 rounded-xl p-4 border border-emerald-100 dark:border-emerald-800/30">
+                                                <h4 className="font-bold text-emerald-800 dark:text-emerald-400 text-sm mb-3 flex items-center"><ThumbsUp className="w-4 h-4 mr-2" /> {t.whatToDo}</h4>
+                                                <ul className="space-y-2">{recs.dos.map((item, i) => <li key={i} className="text-xs text-slate-600 dark:text-slate-400 flex items-start"><span className="w-1 h-1 rounded-full bg-emerald-400 mt-1.5 mr-2 shrink-0"></span>{item}</li>)}</ul>
+                                            </div>
+                                            <div className="bg-rose-50/50 dark:bg-rose-900/10 rounded-xl p-4 border border-rose-100 dark:border-rose-800/30">
+                                                <h4 className="font-bold text-rose-800 dark:text-rose-400 text-sm mb-3 flex items-center"><XCircle className="w-4 h-4 mr-2" /> {t.avoid}</h4>
+                                                <ul className="space-y-2">{recs.donts.map((item, i) => <li key={i} className="text-xs text-slate-600 dark:text-slate-400 flex items-start"><span className="w-1 h-1 rounded-full bg-rose-400 mt-1.5 mr-2 shrink-0"></span>{item}</li>)}</ul>
+                                            </div>
+                                        </div>
+                                    </GlassCard>
+
+                                    <GlassCard>
+                                        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6">{t.pollutants}</h3>
+                                        <div className="space-y-6">
+                                            {[
+                                                { label: "PM 2.5", val: data.current.pollutants.pm2_5, max: 100, color: "bg-blue-500" },
+                                                { label: "PM 10", val: data.current.pollutants.pm10, max: 200, color: "bg-indigo-500" },
+                                                { label: "NO2", val: data.current.pollutants.no2, max: 100, color: "bg-emerald-500" },
+                                                { label: "Ozone", val: data.current.pollutants.o3, max: 180, color: "bg-cyan-500" },
+                                            ].map((item) => (
+                                                <div key={item.label}>
+                                                    <div className="flex justify-between text-sm mb-2">
+                                                        <span className="font-bold text-slate-700 dark:text-slate-300">{item.label}</span>
+                                                        <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{item.val} <span className="text-slate-400 text-xs">µg/m³</span></span>
+                                                    </div>
+                                                    <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
+                                                        <div className={`${item.color} h-2.5 rounded-full shadow-lg transition-all duration-1000`} style={{ width: `${Math.min((item.val / item.max) * 100, 100)}%` }}></div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </GlassCard>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
